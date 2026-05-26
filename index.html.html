@@ -1,0 +1,1048 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BFS Web Crawler — Network Visualizer</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap');
+
+  :root {
+    --bg: #050a0f;
+    --panel: #0a1520;
+    --border: #1a3050;
+    --accent: #00d4ff;
+    --accent2: #ff6b35;
+    --accent3: #39ff14;
+    --text: #c8dcea;
+    --muted: #4a7a99;
+    --visited: #1a3a5c;
+    --queued: #0d4a3a;
+    --active: #4a2a00;
+    --node-r: 22px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Space Mono', monospace;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* GRID BACKGROUND */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image:
+      linear-gradient(rgba(0,212,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,212,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .app {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    min-height: 100vh;
+  }
+
+  /* HEADER */
+  header {
+    padding: 18px 32px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: rgba(5,10,15,0.9);
+    backdrop-filter: blur(8px);
+  }
+
+  .logo {
+    display: flex; align-items: center; gap: 12px;
+  }
+
+  .logo-icon {
+    width: 36px; height: 36px;
+    border: 2px solid var(--accent);
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--accent);
+    font-size: 14px;
+    font-weight: 700;
+    box-shadow: 0 0 12px rgba(0,212,255,0.3);
+    animation: pulse-border 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse-border {
+    0%, 100% { box-shadow: 0 0 12px rgba(0,212,255,0.3); }
+    50% { box-shadow: 0 0 24px rgba(0,212,255,0.6); }
+  }
+
+  .logo h1 {
+    font-family: 'Syne', sans-serif;
+    font-size: 18px;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+  }
+
+  .logo h1 span { color: var(--accent); }
+
+  .status-bar {
+    display: flex; gap: 24px; align-items: center;
+  }
+
+  .status-item {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 11px; color: var(--muted);
+  }
+
+  .status-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--accent3);
+    box-shadow: 0 0 6px var(--accent3);
+    animation: blink 1.2s ease-in-out infinite;
+  }
+
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  /* MAIN LAYOUT */
+  .main {
+    display: grid;
+    grid-template-columns: 340px 1fr;
+    gap: 0;
+    height: calc(100vh - 120px);
+  }
+
+  /* SIDEBAR */
+  .sidebar {
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column;
+    overflow: hidden;
+    background: rgba(10,21,32,0.6);
+  }
+
+  .panel {
+    border-bottom: 1px solid var(--border);
+    padding: 16px 20px;
+  }
+
+  .panel-title {
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 12px;
+    display: flex; align-items: center; gap: 8px;
+  }
+
+  .panel-title::before {
+    content: '';
+    display: inline-block;
+    width: 3px; height: 12px;
+    background: var(--accent);
+  }
+
+  /* URL INPUT */
+  .url-form { display: flex; flex-direction: column; gap: 10px; }
+
+  .url-input-wrap {
+    position: relative;
+  }
+
+  .url-input {
+    width: 100%;
+    background: rgba(0,212,255,0.04);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    padding: 10px 12px;
+    outline: none;
+    border-radius: 4px;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+
+  .url-input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(0,212,255,0.1);
+  }
+
+  .config-row {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+  }
+
+  .config-item label {
+    display: block; font-size: 10px; color: var(--muted);
+    margin-bottom: 5px; letter-spacing: 0.06em;
+  }
+
+  .config-item input, .config-item select {
+    width: 100%;
+    background: rgba(0,212,255,0.04);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    padding: 7px 10px;
+    outline: none;
+    border-radius: 4px;
+  }
+
+  .btn-row { display: flex; gap: 8px; }
+
+  .btn {
+    flex: 1;
+    padding: 10px;
+    border: none;
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.2s;
+    text-transform: uppercase;
+  }
+
+  .btn-primary {
+    background: var(--accent);
+    color: var(--bg);
+    box-shadow: 0 0 12px rgba(0,212,255,0.3);
+  }
+  .btn-primary:hover { box-shadow: 0 0 20px rgba(0,212,255,0.5); transform: translateY(-1px); }
+  .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+  .btn-secondary {
+    background: transparent;
+    color: var(--accent2);
+    border: 1px solid var(--accent2);
+  }
+  .btn-secondary:hover { background: rgba(255,107,53,0.1); }
+
+  /* SPEED CONTROL */
+  .speed-wrap { display: flex; align-items: center; gap: 10px; }
+  .speed-label { font-size: 10px; color: var(--muted); width: 40px; }
+
+  input[type=range] {
+    flex: 1;
+    -webkit-appearance: none;
+    height: 3px;
+    background: var(--border);
+    border-radius: 2px;
+    outline: none;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    box-shadow: 0 0 6px var(--accent);
+  }
+
+  /* STATS */
+  .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+  .stat-box {
+    background: rgba(0,212,255,0.03);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 10px 12px;
+  }
+
+  .stat-val {
+    font-family: 'Syne', sans-serif;
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--accent);
+    line-height: 1;
+  }
+
+  .stat-label { font-size: 10px; color: var(--muted); margin-top: 3px; letter-spacing: 0.06em; }
+
+  /* QUEUE */
+  .queue-panel { flex: 1; overflow-y: auto; }
+
+  .queue-list {
+    display: flex; flex-direction: column; gap: 4px;
+    padding: 0 20px 16px;
+    max-height: 200px;
+    overflow-y: auto;
+  }
+
+  .queue-list::-webkit-scrollbar { width: 4px; }
+  .queue-list::-webkit-scrollbar-track { background: transparent; }
+  .queue-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .q-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 10px;
+    border-radius: 3px;
+    font-size: 10px;
+    background: rgba(0,212,255,0.04);
+    border: 1px solid var(--border);
+    animation: slideIn 0.2s ease;
+  }
+
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateX(-8px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  .q-depth {
+    background: var(--accent);
+    color: var(--bg);
+    padding: 1px 6px;
+    border-radius: 2px;
+    font-size: 9px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+
+  .q-url { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* LOG */
+  .log-panel { border-top: 1px solid var(--border); }
+  .log-list {
+    padding: 8px 20px;
+    max-height: 120px; overflow-y: auto;
+    display: flex; flex-direction: column; gap: 3px;
+  }
+
+  .log-list::-webkit-scrollbar { width: 4px; }
+  .log-list::-webkit-scrollbar-thumb { background: var(--border); }
+
+  .log-entry {
+    font-size: 10px;
+    color: var(--muted);
+    display: flex; gap: 8px;
+    animation: fadeIn 0.2s ease;
+  }
+
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+  .log-time { color: var(--accent); flex-shrink: 0; }
+  .log-info { color: var(--accent3); }
+  .log-warn { color: var(--accent2); }
+
+  /* CANVAS */
+  .canvas-wrap {
+    position: relative;
+    overflow: hidden;
+    background: radial-gradient(ellipse at 50% 30%, rgba(0,212,255,0.04) 0%, transparent 60%);
+  }
+
+  #graphCanvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  .canvas-overlay {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    flex-direction: column; gap: 16px;
+    pointer-events: none;
+    transition: opacity 0.4s;
+  }
+
+  .canvas-overlay.hidden { opacity: 0; }
+
+  .idle-icon {
+    font-size: 48px;
+    opacity: 0.15;
+  }
+
+  .idle-text {
+    font-family: 'Syne', sans-serif;
+    font-size: 14px;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  /* LEGEND */
+  .legend {
+    position: absolute;
+    bottom: 20px; right: 20px;
+    background: rgba(5,10,15,0.85);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px 16px;
+    display: flex; flex-direction: column; gap: 8px;
+    backdrop-filter: blur(8px);
+  }
+
+  .legend-title {
+    font-size: 9px; letter-spacing: 0.12em; color: var(--muted); text-transform: uppercase;
+  }
+
+  .legend-item { display: flex; align-items: center; gap: 8px; font-size: 10px; color: var(--muted); }
+
+  .leg-dot {
+    width: 12px; height: 12px; border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  /* DEPTH BADGE */
+  .depth-badge {
+    position: absolute;
+    top: 20px; left: 20px;
+    font-family: 'Syne', sans-serif;
+    font-size: 11px;
+    color: var(--muted);
+    background: rgba(5,10,15,0.8);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 6px 12px;
+  }
+
+  .depth-badge span { color: var(--accent); font-weight: 800; }
+
+  /* FOOTER */
+  footer {
+    padding: 12px 32px;
+    border-top: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: 10px; color: var(--muted);
+    background: rgba(5,10,15,0.9);
+  }
+
+  .algo-desc {
+    display: flex; gap: 20px;
+  }
+
+  .algo-step {
+    display: flex; align-items: center; gap: 6px;
+  }
+
+  .step-num {
+    background: var(--border);
+    color: var(--accent);
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 9px; font-weight: 700;
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- HEADER -->
+  <header>
+    <div class="logo">
+      <div class="logo-icon">BFS</div>
+      <h1><span>Breadth</span>-First Search · Web Crawler</h1>
+    </div>
+    <div class="status-bar">
+      <div class="status-item">
+        <div class="status-dot"></div>
+        <span id="statusText">IDLE</span>
+      </div>
+      <div class="status-item">⚡ Real-time Network Visualization</div>
+    </div>
+  </header>
+
+  <!-- MAIN -->
+  <div class="main">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+
+      <!-- URL CONFIG -->
+      <div class="panel">
+        <div class="panel-title">Crawler Configuration</div>
+        <div class="url-form">
+          <div class="url-input-wrap">
+            <input class="url-input" id="seedUrl" type="text" value="https://example.com" placeholder="Seed URL…" />
+          </div>
+          <div class="config-row">
+            <div class="config-item">
+              <label>MAX DEPTH</label>
+              <input type="number" id="maxDepth" value="3" min="1" max="6" />
+            </div>
+            <div class="config-item">
+              <label>MAX NODES</label>
+              <input type="number" id="maxNodes" value="40" min="5" max="100" />
+            </div>
+          </div>
+          <div class="config-item">
+            <label>TRAVERSAL SPEED (ms delay)</label>
+            <div class="speed-wrap">
+              <span class="speed-label" id="speedLabel">600ms</span>
+              <input type="range" id="speedRange" min="100" max="2000" value="600" step="100" />
+            </div>
+          </div>
+          <div class="btn-row">
+            <button class="btn btn-primary" id="startBtn" onclick="startCrawl()">▶ Start</button>
+            <button class="btn btn-secondary" id="resetBtn" onclick="resetCrawl()">↺ Reset</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- STATS -->
+      <div class="panel">
+        <div class="panel-title">Live Statistics</div>
+        <div class="stats-grid">
+          <div class="stat-box">
+            <div class="stat-val" id="statVisited">0</div>
+            <div class="stat-label">VISITED</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-val" id="statQueued">0</div>
+            <div class="stat-label">QUEUED</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-val" id="statEdges">0</div>
+            <div class="stat-label">EDGES</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-val" id="statDepth">0</div>
+            <div class="stat-label">CUR. DEPTH</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- QUEUE -->
+      <div class="panel queue-panel">
+        <div class="panel-title">BFS Queue (FIFO)</div>
+        <div class="queue-list" id="queueList"></div>
+      </div>
+
+      <!-- LOG -->
+      <div class="log-panel">
+        <div class="panel" style="border-bottom:none; padding-bottom:4px;">
+          <div class="panel-title">Event Log</div>
+        </div>
+        <div class="log-list" id="logList"></div>
+      </div>
+
+    </aside>
+
+    <!-- CANVAS -->
+    <div class="canvas-wrap">
+      <canvas id="graphCanvas"></canvas>
+
+      <div class="canvas-overlay" id="idleOverlay">
+        <div class="idle-icon">🕸️</div>
+        <div class="idle-text">Configure & Start Crawl</div>
+      </div>
+
+      <div class="depth-badge" id="depthBadge" style="display:none">
+        Current Depth: <span id="depthVal">0</span>
+      </div>
+
+      <div class="legend">
+        <div class="legend-title">Node Legend</div>
+        <div class="legend-item"><div class="leg-dot" style="background:#00d4ff;box-shadow:0 0 8px #00d4ff"></div>Seed / Root</div>
+        <div class="legend-item"><div class="leg-dot" style="background:#ff6b35;box-shadow:0 0 8px #ff6b35"></div>Active (Processing)</div>
+        <div class="legend-item"><div class="leg-dot" style="background:#39ff14;box-shadow:0 0 6px #39ff14"></div>In Queue</div>
+        <div class="legend-item"><div class="leg-dot" style="background:#1a6a9a"></div>Visited</div>
+        <div class="legend-item"><div class="leg-dot" style="background:#2a2a3a"></div>Discovered</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <footer>
+    <div class="algo-desc">
+      <div class="algo-step"><div class="step-num">1</div>Enqueue seed URL (depth 0)</div>
+      <div class="algo-step"><div class="step-num">2</div>Dequeue → mark visited → extract links</div>
+      <div class="algo-step"><div class="step-num">3</div>Enqueue unvisited neighbors (depth+1)</div>
+      <div class="algo-step"><div class="step-num">4</div>Repeat until queue empty or limit reached</div>
+    </div>
+    <span>BFS guarantees shortest-path discovery by level</span>
+  </footer>
+
+</div>
+
+<script>
+// ============================================================
+//   DATA — Simulated web graph (realistic domain names)
+// ============================================================
+const SITE_GRAPH = {
+  "https://example.com": [
+    "https://example.com/about",
+    "https://example.com/products",
+    "https://example.com/blog",
+    "https://example.com/contact",
+    "https://partner.io",
+  ],
+  "https://example.com/about": [
+    "https://example.com/team",
+    "https://example.com/careers",
+    "https://linkedin.com/company/example",
+  ],
+  "https://example.com/products": [
+    "https://example.com/products/alpha",
+    "https://example.com/products/beta",
+    "https://docs.example.com",
+    "https://pricing.example.com",
+  ],
+  "https://example.com/blog": [
+    "https://example.com/blog/bfs-algorithms",
+    "https://example.com/blog/web-crawlers",
+    "https://medium.com/example",
+  ],
+  "https://example.com/contact": [
+    "https://support.example.com",
+    "https://twitter.com/example",
+  ],
+  "https://partner.io": [
+    "https://partner.io/integrations",
+    "https://partner.io/docs",
+    "https://github.com/partner-io",
+  ],
+  "https://example.com/team": [
+    "https://github.com/alice",
+    "https://github.com/bob",
+  ],
+  "https://example.com/careers": [
+    "https://jobs.example.com",
+    "https://glassdoor.com/example",
+  ],
+  "https://linkedin.com/company/example": [],
+  "https://example.com/products/alpha": [
+    "https://example.com/products/alpha/changelog",
+    "https://example.com/products/alpha/docs",
+  ],
+  "https://example.com/products/beta": [
+    "https://beta.example.com",
+    "https://example.com/products/alpha",
+  ],
+  "https://docs.example.com": [
+    "https://docs.example.com/api",
+    "https://docs.example.com/guides",
+    "https://status.example.com",
+  ],
+  "https://pricing.example.com": [
+    "https://example.com/products",
+    "https://checkout.example.com",
+  ],
+  "https://example.com/blog/bfs-algorithms": [
+    "https://example.com/blog/dfs-algorithms",
+    "https://wikipedia.org/wiki/BFS",
+  ],
+  "https://example.com/blog/web-crawlers": [
+    "https://example.com/blog/seo-guide",
+    "https://scrapy.org",
+  ],
+  "https://medium.com/example": [],
+  "https://support.example.com": [
+    "https://status.example.com",
+    "https://forum.example.com",
+  ],
+  "https://twitter.com/example": [],
+  "https://partner.io/integrations": [
+    "https://slack.com/apps/partner",
+    "https://zapier.com/partner",
+  ],
+  "https://partner.io/docs": [
+    "https://docs.example.com",
+  ],
+  "https://github.com/partner-io": [],
+  "https://github.com/alice": [],
+  "https://github.com/bob": [],
+  "https://jobs.example.com": [],
+  "https://glassdoor.com/example": [],
+  "https://example.com/products/alpha/changelog": [],
+  "https://example.com/products/alpha/docs": [],
+  "https://beta.example.com": [],
+  "https://docs.example.com/api": [],
+  "https://docs.example.com/guides": [],
+  "https://status.example.com": [],
+  "https://checkout.example.com": [],
+  "https://example.com/blog/dfs-algorithms": [],
+  "https://wikipedia.org/wiki/BFS": [],
+  "https://example.com/blog/seo-guide": [],
+  "https://scrapy.org": [],
+  "https://forum.example.com": [],
+  "https://slack.com/apps/partner": [],
+  "https://zapier.com/partner": [],
+};
+
+// ============================================================
+//   STATE
+// ============================================================
+let nodes = [];       // { id, url, x, y, depth, state, radius }
+let edges = [];       // { from, to }
+let queue = [];       // { url, depth }
+let visited = new Set();
+let urlToId = {};
+let nodeCount = 0;
+let edgeCount = 0;
+let currentDepth = 0;
+let running = false;
+let crawlTimer = null;
+let animFrame = null;
+let activeNodeId = null;
+let lastTime = 0;
+
+// Canvas
+const canvas = document.getElementById('graphCanvas');
+const ctx = canvas.getContext('2d');
+
+function resizeCanvas() {
+  const wrap = canvas.parentElement;
+  canvas.width = wrap.clientWidth;
+  canvas.height = wrap.clientHeight;
+}
+
+window.addEventListener('resize', () => { resizeCanvas(); });
+resizeCanvas();
+
+// ============================================================
+//   LAYOUT — Radial / force-directed hybrid
+// ============================================================
+function positionForNode(url, depth) {
+  const cx = canvas.width / 2;
+  const cy = canvas.height / 2;
+  if (depth === 0) return { x: cx, y: cy };
+
+  const siblings = nodes.filter(n => n.depth === depth);
+  const idx = siblings.length;
+  const total = Math.max(6, siblings.length + 1);
+  const radius = 90 + depth * 100;
+  const angle = (idx / total) * Math.PI * 2 - Math.PI / 2 + (depth % 2 === 0 ? 0 : Math.PI / total);
+  return {
+    x: cx + radius * Math.cos(angle),
+    y: cy + radius * Math.sin(angle),
+  };
+}
+
+// Simple repulsion to avoid overlap
+function applyRepulsion() {
+  for (let i = 0; i < nodes.length; i++) {
+    for (let j = i + 1; j < nodes.length; j++) {
+      const dx = nodes[j].x - nodes[i].x;
+      const dy = nodes[j].y - nodes[i].y;
+      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+      const minDist = 70;
+      if (dist < minDist) {
+        const force = (minDist - dist) / dist * 0.5;
+        nodes[i].x -= dx * force;
+        nodes[i].y -= dy * force;
+        nodes[j].x += dx * force;
+        nodes[j].y += dy * force;
+      }
+    }
+  }
+}
+
+// ============================================================
+//   BFS STEP
+// ============================================================
+function bfsStep() {
+  const maxNodes = parseInt(document.getElementById('maxNodes').value);
+  const maxDepth = parseInt(document.getElementById('maxDepth').value);
+
+  if (queue.length === 0 || nodeCount >= maxNodes) {
+    stopCrawl(queue.length === 0 ? 'Queue exhausted' : 'Node limit reached');
+    return;
+  }
+
+  const { url, depth } = queue.shift();
+
+  if (visited.has(url)) {
+    scheduleNext();
+    return;
+  }
+
+  visited.add(url);
+  currentDepth = depth;
+
+  // Mark node active
+  const nodeId = urlToId[url];
+  if (nodeId !== undefined) {
+    nodes[nodeId].state = 'active';
+    activeNodeId = nodeId;
+  }
+
+  updateStats();
+  updateQueueUI();
+  log(`Visiting [d=${depth}] ${shortUrl(url)}`, 'info');
+
+  // Simulate discovering links
+  const links = SITE_GRAPH[url] || [];
+
+  setTimeout(() => {
+    if (nodeId !== undefined) nodes[nodeId].state = 'visited';
+
+    if (depth < maxDepth) {
+      links.forEach(link => {
+        if (!visited.has(link) && nodeCount < maxNodes && !urlToId.hasOwnProperty(link)) {
+          // Add node
+          const pos = positionForNode(link, depth + 1);
+          urlToId[link] = nodeCount;
+          nodes.push({ id: nodeCount, url: link, x: pos.x, y: pos.y, depth: depth + 1, state: 'queued', radius: 18, vx: 0, vy: 0 });
+          nodeCount++;
+          edgeCount++;
+          edges.push({ from: urlToId[url], to: urlToId[link] });
+          queue.push({ url: link, depth: depth + 1 });
+          log(`Discovered ${shortUrl(link)}`, 'default');
+        } else if (!visited.has(link) && urlToId.hasOwnProperty(link)) {
+          // Edge only
+          const fromId = urlToId[url];
+          const toId = urlToId[link];
+          if (fromId !== undefined && toId !== undefined) {
+            if (!edges.find(e => e.from === fromId && e.to === toId)) {
+              edges.push({ from: fromId, to: toId });
+              edgeCount++;
+            }
+          }
+        }
+      });
+    }
+
+    updateStats();
+    updateQueueUI();
+    applyRepulsion();
+    scheduleNext();
+  }, 200);
+}
+
+function scheduleNext() {
+  if (!running) return;
+  const delay = parseInt(document.getElementById('speedRange').value);
+  crawlTimer = setTimeout(bfsStep, delay);
+}
+
+// ============================================================
+//   START / STOP / RESET
+// ============================================================
+function startCrawl() {
+  if (running) return;
+  const seed = document.getElementById('seedUrl').value.trim() || 'https://example.com';
+
+  running = true;
+  document.getElementById('startBtn').disabled = true;
+  document.getElementById('statusText').textContent = 'CRAWLING';
+  document.getElementById('idleOverlay').classList.add('hidden');
+  document.getElementById('depthBadge').style.display = 'block';
+
+  // Add seed node
+  const cx = canvas.width / 2;
+  const cy = canvas.height / 2;
+  urlToId[seed] = 0;
+  nodes.push({ id: 0, url: seed, x: cx, y: cy, depth: 0, state: 'queued', radius: 24 });
+  nodeCount = 1;
+  queue.push({ url: seed, depth: 0 });
+
+  log(`BFS started from ${shortUrl(seed)}`, 'info');
+  updateStats();
+  updateQueueUI();
+  scheduleNext();
+  requestAnimationFrame(renderLoop);
+}
+
+function stopCrawl(reason) {
+  running = false;
+  activeNodeId = null;
+  clearTimeout(crawlTimer);
+  document.getElementById('startBtn').disabled = false;
+  document.getElementById('statusText').textContent = 'COMPLETE';
+  log(`Done — ${reason}. ${nodeCount} nodes, ${edgeCount} edges.`, 'warn');
+}
+
+function resetCrawl() {
+  running = false;
+  clearTimeout(crawlTimer);
+  cancelAnimationFrame(animFrame);
+  nodes = []; edges = []; queue = [];
+  visited.clear(); urlToId = {};
+  nodeCount = 0; edgeCount = 0; currentDepth = 0; activeNodeId = null;
+  document.getElementById('startBtn').disabled = false;
+  document.getElementById('statusText').textContent = 'IDLE';
+  document.getElementById('idleOverlay').classList.remove('hidden');
+  document.getElementById('depthBadge').style.display = 'none';
+  document.getElementById('queueList').innerHTML = '';
+  document.getElementById('logList').innerHTML = '';
+  updateStats();
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+}
+
+// ============================================================
+//   RENDER
+// ============================================================
+const NODE_COLORS = {
+  queued: '#39ff14',
+  active: '#ff6b35',
+  visited: '#1a6a9a',
+  seed: '#00d4ff',
+};
+
+function renderLoop(ts) {
+  animFrame = requestAnimationFrame(renderLoop);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Draw edges
+  edges.forEach(e => {
+    const a = nodes[e.from], b = nodes[e.to];
+    if (!a || !b) return;
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
+    ctx.strokeStyle = 'rgba(0,212,255,0.15)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Arrow
+    const angle = Math.atan2(b.y - a.y, b.x - a.x);
+    const dist = Math.sqrt((b.x-a.x)**2 + (b.y-a.y)**2);
+    if (dist > 40) {
+      const tx = a.x + (b.x - a.x) * 0.62;
+      const ty = a.y + (b.y - a.y) * 0.62;
+      ctx.save();
+      ctx.translate(tx, ty);
+      ctx.rotate(angle);
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(-6, -3);
+      ctx.lineTo(-6, 3);
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(0,212,255,0.3)';
+      ctx.fill();
+      ctx.restore();
+    }
+  });
+
+  // Draw nodes
+  nodes.forEach(n => {
+    const isActive = n.id === activeNodeId;
+    const isSeed = n.depth === 0;
+    const color = isSeed ? NODE_COLORS.seed : NODE_COLORS[n.state] || '#2a2a3a';
+    const r = n.radius || 18;
+
+    // Glow
+    if (isActive || isSeed) {
+      const grd = ctx.createRadialGradient(n.x, n.y, r * 0.5, n.x, n.y, r * 2.5);
+      grd.addColorStop(0, isActive ? 'rgba(255,107,53,0.3)' : 'rgba(0,212,255,0.25)');
+      grd.addColorStop(1, 'transparent');
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, r * 2.5, 0, Math.PI * 2);
+      ctx.fillStyle = grd;
+      ctx.fill();
+    }
+
+    // Circle
+    ctx.beginPath();
+    ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
+    ctx.fillStyle = n.state === 'visited' && !isSeed ? 'rgba(26,106,154,0.25)' : 'rgba(5,10,15,0.85)';
+    ctx.fill();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = isActive ? 2.5 : 1.5;
+    ctx.stroke();
+
+    // Icon letter
+    const host = n.url.replace(/^https?:\/\//, '').split('/')[0];
+    const letter = host[0].toUpperCase();
+    ctx.fillStyle = color;
+    ctx.font = `bold ${isSeed ? 12 : 10}px Space Mono`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(letter, n.x, n.y);
+
+    // Depth badge
+    if (n.depth > 0) {
+      ctx.fillStyle = 'rgba(0,212,255,0.7)';
+      ctx.font = '8px Space Mono';
+      ctx.fillText(`d${n.depth}`, n.x + r - 2, n.y - r + 4);
+    }
+
+    // Label on hover or active
+    if (isActive) {
+      const label = shortUrl(n.url);
+      const tw = ctx.measureText(label).width + 12;
+      ctx.fillStyle = 'rgba(5,10,15,0.9)';
+      ctx.fillRect(n.x - tw / 2, n.y + r + 3, tw, 16);
+      ctx.fillStyle = '#ff6b35';
+      ctx.font = '9px Space Mono';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.fillText(label, n.x, n.y + r + 5);
+    }
+  });
+
+  // Active pulse ring
+  if (activeNodeId !== null && nodes[activeNodeId]) {
+    const n = nodes[activeNodeId];
+    const t = (Date.now() % 800) / 800;
+    const pr = n.radius + t * 20;
+    ctx.beginPath();
+    ctx.arc(n.x, n.y, pr, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(255,107,53,${0.6 - t * 0.6})`;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  }
+
+  // Update depth badge
+  document.getElementById('depthVal').textContent = currentDepth;
+}
+
+// ============================================================
+//   UI HELPERS
+// ============================================================
+function updateStats() {
+  document.getElementById('statVisited').textContent = visited.size;
+  document.getElementById('statQueued').textContent = queue.length;
+  document.getElementById('statEdges').textContent = edgeCount;
+  document.getElementById('statDepth').textContent = currentDepth;
+}
+
+function updateQueueUI() {
+  const list = document.getElementById('queueList');
+  list.innerHTML = queue.slice(0, 15).map(q => `
+    <div class="q-item">
+      <span class="q-depth">d${q.depth}</span>
+      <span class="q-url">${shortUrl(q.url)}</span>
+    </div>
+  `).join('');
+  if (queue.length > 15) {
+    list.innerHTML += `<div class="q-item"><span class="q-url">+${queue.length - 15} more…</span></div>`;
+  }
+}
+
+function log(msg, type = 'default') {
+  const list = document.getElementById('logList');
+  const t = new Date().toLocaleTimeString('en', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const div = document.createElement('div');
+  div.className = `log-entry log-${type}`;
+  div.innerHTML = `<span class="log-time">${t}</span><span>${msg}</span>`;
+  list.prepend(div);
+  if (list.children.length > 50) list.lastChild.remove();
+}
+
+function shortUrl(url) {
+  return url.replace(/^https?:\/\//, '').substring(0, 32) + (url.length > 40 ? '…' : '');
+}
+
+// Speed slider
+document.getElementById('speedRange').addEventListener('input', function () {
+  document.getElementById('speedLabel').textContent = this.value + 'ms';
+});
+
+// Canvas click — show tooltip
+canvas.addEventListener('mousemove', function (e) {
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+  canvas.style.cursor = 'default';
+  nodes.forEach(n => {
+    const dx = mx - n.x, dy = my - n.y;
+    if (Math.sqrt(dx * dx + dy * dy) < n.radius + 4) {
+      canvas.style.cursor = 'pointer';
+    }
+  });
+});
+</script>
+</body>
+</html>
